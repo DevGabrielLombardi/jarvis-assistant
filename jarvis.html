@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#000a14">
+<title>J.A.R.V.I.S.</title>
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; background:#000a14; overflow:hidden; font-family:'Courier New','Lucida Console',monospace; -webkit-font-smoothing:antialiased; color:#00aa44; }
+
+/* ── Config overlay ─────────────────────────────────── */
+#cfg {
+  position:fixed; inset:0; z-index:200;
+  background:#000a14;
+  display:flex; align-items:center; justify-content:center;
+}
+#cfg-box {
+  width:min(440px,90vw);
+  border:1px solid #004422;
+  padding:36px 32px;
+  text-align:center;
+}
+#cfg h1 { font-size:13px; letter-spacing:8px; color:#00dd55; font-weight:normal; margin-bottom:6px; }
+#cfg .sub { font-size:9px; letter-spacing:3px; color:#003a18; margin-bottom:28px; }
+#cfg label { display:block; font-size:9px; letter-spacing:3px; color:#004d22; margin-bottom:8px; text-align:left; }
+#cfg input {
+  width:100%; background:#000f07; border:1px solid #004422; color:#00cc55;
+  font-family:'Courier New',monospace; font-size:12px; letter-spacing:1px;
+  padding:11px 14px; outline:none; margin-bottom:6px;
+}
+#cfg input:focus { border-color:#00884d; }
+#cfg .hint { font-size:9px; color:#002b12; letter-spacing:1px; margin-bottom:22px; text-align:left; line-height:1.7; }
+#cfg .hint a { color:#005522; }
+#cfg-btn {
+  width:100%; background:rgba(0,20,10,0.9); border:1px solid #009933;
+  color:#00ee66; font-family:'Courier New',monospace; font-size:10px;
+  letter-spacing:3px; padding:12px; cursor:pointer; transition:all 0.2s;
+}
+#cfg-btn:hover { background:rgba(0,40,18,0.95); border-color:#00cc44; }
+#cfg-err { font-size:10px; color:#cc3300; letter-spacing:1px; margin-top:10px; min-height:16px; }
+
+/* ── Main canvas ──────────────────────────────────── */
+#jc { position:fixed; top:0; left:0; width:100%; height:100%; display:block; z-index:0; }
+
+/* scan lines */
+#sl { position:fixed; inset:0; z-index:2; pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.022) 3px,rgba(0,0,0,0.022) 6px); }
+
+/* HUD corners */
+.hc { position:fixed; width:32px; height:32px; z-index:10; pointer-events:none; opacity:0.55; }
+.hc.tl { top:18px; left:18px; border-top:1px solid #00551a; border-left:1px solid #00551a; }
+.hc.tr { top:18px; right:18px; border-top:1px solid #00551a; border-right:1px solid #00551a; }
+.hc.bl { bottom:18px; left:18px; border-bottom:1px solid #00551a; border-left:1px solid #00551a; }
+.hc.br { bottom:18px; right:18px; border-bottom:1px solid #00551a; border-right:1px solid #00551a; }
+
+/* side labels */
+.hud-side { position:fixed; z-index:10; pointer-events:none; font-size:9px; letter-spacing:2px; color:#001e0c; writing-mode:vertical-rl; transition:color .5s; }
+#hud-l { left:20px; top:50%; transform:translateY(-50%) rotate(180deg); }
+#hud-r { right:20px; top:50%; transform:translateY(-50%); }
+
+/* top bar */
+#topbar { position:fixed; top:0; left:0; right:0; z-index:10; text-align:center; padding:24px 0 0; pointer-events:none; }
+#jtitle { font-size:14px; letter-spacing:10px; color:#00dd55; font-weight:normal; }
+#jst { font-size:9px; letter-spacing:4px; color:#003a18; margin-top:8px; transition:color .5s; }
+
+/* clock */
+#jclock-row { position:fixed; top:24px; right:28px; z-index:10; text-align:right; pointer-events:none; }
+#jclock { font-size:11px; letter-spacing:2px; color:#003a18; }
+#jdate  { font-size:9px;  letter-spacing:1px; color:#002010; margin-top:3px; }
+
+/* version / settings */
+#jver { position:fixed; top:24px; left:28px; z-index:10; font-size:9px; letter-spacing:2px; color:#002010; pointer-events:none; }
+#btn-cfg {
+  position:fixed; top:20px; left:28px; z-index:20;
+  background:transparent; border:none; color:#002b12;
+  font-family:'Courier New',monospace; font-size:9px; letter-spacing:2px;
+  cursor:pointer; padding:4px 6px; transition:color .2s;
+}
+#btn-cfg:hover { color:#006622; }
+
+/* wave */
+#jwave { position:fixed; left:0; right:0; z-index:10; text-align:center; font-size:12px; letter-spacing:4px; color:#001e0c; pointer-events:none; transition:color .4s; }
+
+/* pulse ring */
+#ring { position:fixed; pointer-events:none; z-index:10; border-radius:50%; border:1px solid transparent; left:50%; top:50%; transform:translate(-50%,-50%); width:0; height:0; transition:width .4s,height .4s,border-color .4s; }
+#ring.on { width:min(56vmin,310px); height:min(56vmin,310px); border-color:rgba(0,255,100,.12); animation:rp 1.8s ease-in-out infinite; }
+@keyframes rp { 0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1)} 50%{opacity:.35;transform:translate(-50%,-50%) scale(1.06)} }
+
+/* bottom panel */
+#bottom { position:fixed; bottom:0; left:50%; transform:translateX(-50%); z-index:10; padding:0 clamp(16px,5vw,60px) 24px; width:100%; max-width:820px; }
+
+#jchat { min-height:60px; max-height:115px; overflow-y:auto; font-size:12px; line-height:1.85; color:#007730; margin-bottom:14px; padding:10px 0 0; border-top:1px solid #001608; scrollbar-width:thin; scrollbar-color:#002b10 transparent; }
+#jchat::-webkit-scrollbar { width:2px; }
+#jchat::-webkit-scrollbar-thumb { background:#002b10; }
+.msg-j { color:#00cc55; margin-bottom:4px; }
+.msg-u { color:#005522; margin-bottom:4px; }
+.msg-e { color:#884400; margin-bottom:4px; }
+
+#controls { display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; }
+
+button.main-btn {
+  background:transparent; font-family:'Courier New',monospace; font-size:10px;
+  letter-spacing:2px; cursor:pointer; border-radius:2px; transition:all .25s;
+}
+#jmic { border:1px solid #009933; color:#00cc44; background:rgba(0,12,6,.85); padding:10px 30px; }
+#jmic:hover { background:rgba(0,30,12,.9); border-color:#00cc44; }
+#jmic.active { border-color:#00ff66; color:#00ff88; background:rgba(0,40,18,.95); }
+.btn2 { border:1px solid #001a08; color:#003314; padding:10px 18px; }
+.btn2:hover { border-color:#003314; color:#005522; }
+</style>
+</head>
+<body>
+
+<!-- ── Config overlay ───────────────────────────── -->
+<div id="cfg">
+  <div id="cfg-box">
+    <h1>J.A.R.V.I.S.</h1>
+    <div class="sub">CONFIGURAÇÃO INICIAL DO SISTEMA</div>
+    <label>CHAVE DE API ANTHROPIC</label>
+    <input type="password" id="key-in" placeholder="sk-ant-api03-..." autocomplete="off" />
+    <div class="hint">
+      Obtenha sua chave em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a><br>
+      A chave é salva localmente no navegador e nunca é enviada a terceiros.
+    </div>
+    <button id="cfg-btn" onclick="saveKey()">◉ INICIALIZAR SISTEMA</button>
+    <div id="cfg-err"></div>
+  </div>
+</div>
+
+<!-- ── Main interface ───────────────────────────── -->
+<canvas id="jc"></canvas>
+<div id="sl"></div>
+
+<div class="hc tl"></div>
+<div class="hc tr"></div>
+<div class="hc bl"></div>
+<div class="hc br"></div>
+
+<div class="hud-side" id="hud-l">MM SOFTWARES · GABRIEL LOMBARDI</div>
+<div class="hud-side" id="hud-r">IMPLANTAÇÃO &amp; TREINAMENTO</div>
+
+<div id="ring"></div>
+
+<div id="topbar">
+  <div id="jtitle">J.A.R.V.I.S.</div>
+  <div id="jst">INICIALIZANDO</div>
+</div>
+
+<button id="btn-cfg" onclick="showCfg()" title="Configurações">⚙ CONFIG</button>
+
+<div id="jclock-row">
+  <div id="jclock">--:--:--</div>
+  <div id="jdate">-- --- ----</div>
+</div>
+
+<div id="jwave" style="top:50%;margin-top:165px;">⬡ ⬢ ⬡ ⬢ ⬡</div>
+
+<div id="bottom">
+  <div id="jchat"></div>
+  <div id="controls">
+    <button id="jmic" class="main-btn" onclick="jVoice()">◉ ATIVAR VOZ</button>
+    <button class="main-btn btn2" onclick="jClear()">✕ LIMPAR</button>
+    <button class="main-btn btn2" onclick="jHelp()">? AJUDA</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ── API key management ──────────────────────── */
+  let API_KEY = localStorage.getItem('jarvis_key') || '';
+
+  window.saveKey = function () {
+    const v = document.getElementById('key-in').value.trim();
+    const err = document.getElementById('cfg-err');
+    if (!v.startsWith('sk-ant-')) {
+      err.textContent = 'Chave inválida. Deve começar com sk-ant-';
+      return;
+    }
+    localStorage.setItem('jarvis_key', v);
+    API_KEY = v;
+    document.getElementById('cfg').style.display = 'none';
+    err.textContent = '';
+    bootApp();
+  };
+
+  window.showCfg = function () {
+    document.getElementById('key-in').value = API_KEY;
+    document.getElementById('cfg').style.display = 'flex';
+  };
+
+  if (API_KEY) {
+    document.getElementById('cfg').style.display = 'none';
+  }
+
+  /* ── State ───────────────────────────────────── */
+  let state = 'idle', isListening = false, rec = null;
+  const hist = [];
+
+  const $  = id => document.getElementById(id);
+  const statusEl = $('jst'), chatEl = $('jchat'),
+        micBtn = $('jmic'), waveEl = $('jwave'),
+        ringEl = $('ring'), hudL = $('hud-l'), hudR = $('hud-r');
+
+  /* ── Clock ───────────────────────────────────── */
+  function tick() {
+    const n = new Date();
+    $('jclock').textContent = n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    $('jdate').textContent  = n.toLocaleDateString ('pt-BR',{day:'2-digit',month:'short',year:'numeric'}).toUpperCase();
+  }
+  tick(); setInterval(tick, 1000);
+
+  /* ── Three.js ────────────────────────────────── */
+  let renderer, scene, camera, grp, ptsMesh, t = 0;
+
+  function initThree() {
+    if (typeof THREE === 'undefined') { setTimeout(initThree, 200); return; }
+    const W = window.innerWidth, H = window.innerHeight;
+    renderer = new THREE.WebGLRenderer({ canvas: $('jc'), antialias: true });
+    renderer.setSize(W, H);
+    renderer.setClearColor(0x000a14);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    scene  = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(42, W/H, 0.1, 100);
+    camera.position.z = 6.2;
+    grp = new THREE.Group(); scene.add(grp);
+    buildSphere(); loop();
+    window.addEventListener('resize', () => {
+      const W2=innerWidth, H2=innerHeight;
+      renderer.setSize(W2,H2); camera.aspect=W2/H2; camera.updateProjectionMatrix();
+    });
+  }
+
+  function buildSphere() {
+    const N=520, R=2.1, g=Math.PI*(3-Math.sqrt(5)), verts=[];
+    for (let i=0;i<N;i++) {
+      const y=1-(i/(N-1))*2, r=Math.sqrt(Math.max(0,1-y*y))*R, a=g*i;
+      verts.push(new THREE.Vector3(Math.cos(a)*r, y*R, Math.sin(a)*r));
+    }
+    ptsMesh = new THREE.Points(
+      new THREE.BufferGeometry().setFromPoints(verts),
+      new THREE.PointsMaterial({color:0x00ff55,size:0.058,sizeAttenuation:true,transparent:true,opacity:.88})
+    ); grp.add(ptsMesh);
+    const lp=[];
+    for (let i=0;i<N;i++){let c=0;for(let j=i+1;j<N&&c<4;j++){if(verts[i].distanceTo(verts[j])<0.84){lp.push(verts[i].x,verts[i].y,verts[i].z,verts[j].x,verts[j].y,verts[j].z);c++;}}}
+    const lg=new THREE.BufferGeometry();
+    lg.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
+    grp.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x004d22,transparent:true,opacity:.3})));
+  }
+
+  function loop() {
+    requestAnimationFrame(loop); t+=0.016; if(!renderer)return;
+    switch(state){
+      case 'idle':     grp.rotation.y+=0.0025; grp.rotation.x=Math.sin(t*.35)*.05; grp.scale.setScalar(1); break;
+      case 'listening':grp.rotation.y+=0.007;  grp.scale.setScalar(1+Math.sin(t*5)*.042); break;
+      case 'thinking': grp.rotation.y+=0.018;  grp.rotation.z+=0.006; grp.scale.setScalar(1+Math.sin(t*9)*.022); break;
+      case 'speaking': grp.rotation.y+=0.005;  grp.scale.setScalar(1+Math.sin(t*7)*.03); break;
+    }
+    renderer.render(scene,camera);
+  }
+
+  /* ── State management ────────────────────────── */
+  const SL={'idle':'SISTEMA PRONTO','listening':'OUVINDO...','thinking':'PROCESSANDO...','speaking':'RESPONDENDO...'};
+  const SC={'idle':'#003d1a','listening':'#00cc55','thinking':'#00cc88','speaking':'#00ff77'};
+  const PC={'idle':0x00cc55,'listening':0x00ff88,'thinking':0x00ffaa,'speaking':0x44ff99};
+  const HC={'idle':'#001e0c','listening':'#007733','thinking':'#006655','speaking':'#007744'};
+  const WC={'idle':'#001e0c','listening':'#009940','thinking':'#009966','speaking':'#00bb55'};
+
+  function setState(s) {
+    state=s;
+    statusEl.textContent=SL[s]||s.toUpperCase(); statusEl.style.color=SC[s]||'#003d1a';
+    if(ptsMesh) ptsMesh.material.color.setHex(PC[s]||0x00cc55);
+    hudL.style.color=HC[s]; hudR.style.color=HC[s];
+    ringEl.classList.toggle('on', s==='listening');
+    micBtn.textContent = s==='listening'?'◉ PARAR':'◉ ATIVAR VOZ';
+    micBtn.classList.toggle('active', s==='listening');
+  }
+
+  /* ── Wave ────────────────────────────────────── */
+  let wI=0;
+  const WF={idle:['⬡ ⬢ ⬡ ⬢ ⬡','⬢ ⬡ ⬢ ⬡ ⬢'],listening:['▁▃▇▅▂','▂▅▇▃▅','▃▇▅▇▃','▁▄▇▄▁'],thinking:['●  ○  ○','○  ●  ○','○  ○  ●','○  ●  ○'],speaking:['▁▂▅▇▃▂','▂▄▇▅▄▂','▁▃▅▇▅▃','▂▅▇▃▅▁']};
+  setInterval(()=>{const f=WF[state]||WF.idle; waveEl.textContent=f[wI++%f.length]; waveEl.style.color=WC[state]||'#001e0c';}, 270);
+
+  /* ── Chat ────────────────────────────────────── */
+  function addMsg(role, text) {
+    const d=document.createElement('div');
+    d.className = role==='user'?'msg-u': role==='err'?'msg-e':'msg-j';
+    d.textContent=(role==='user'?'❯ ':'◈ ')+text;
+    chatEl.appendChild(d); chatEl.scrollTop=chatEl.scrollHeight;
+  }
+
+  window.jClear = ()=>{ chatEl.innerHTML=''; hist.length=0; };
+  window.jHelp  = ()=>{ addMsg('jarvis','Pressione ESPAÇO ou clique em Ativar Voz e fale seu comando em português. Exemplos: "JARVIS, redija um e-mail para o cliente X", "crie uma ata de reunião", "explique como funciona o CIOT". Pressione ESC para limpar o histórico.'); };
+
+  /* ── Text prep for speech ────────────────────── */
+  function prepSpeech(text) {
+    return text
+      .replace(/J\.A\.R\.V\.I\.S\./gi,'JARVIS')
+      .replace(/\*\*(.*?)\*\*/gs,'$1').replace(/\*(.*?)\*/gs,'$1')
+      .replace(/#{1,6}\s+/g,'').replace(/`([^`]+)`/g,'$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g,'$1')
+      .replace(/\n{2,}/g,'. ').replace(/\n/g,', ').trim();
+  }
+
+  /* ── API ─────────────────────────────────────── */
+  async function askJarvis(msg) {
+    if (!API_KEY) { showCfg(); return; }
+    if (msg.toLowerCase().includes('limpar')) { jClear(); return; }
+
+    hist.push({role:'user',content:msg});
+    addMsg('user',msg); setState('thinking');
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'x-api-key': API_KEY,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body: JSON.stringify({
+          model:'claude-sonnet-4-6',
+          max_tokens:1000,
+          system:`Você é JARVIS (Just A Rather Very Intelligent System), o assistente de IA pessoal de Gabriel Lombardi, nascido em 29 de janeiro de 1993. Gabriel é Coordenador de Implantação e Treinamento na MM Softwares, empresa brasileira de software. Seu trabalho envolve implantação de sistemas, treinamento de clientes, suporte técnico, documentação e gestão de projetos.
+
+Personalidade: Preciso, eficiente, ligeiramente formal mas acolhedor. Levemente bem-humorado quando apropriado. Pró-ativo e orientado a soluções.
+
+Regras absolutas:
+- Responda SEMPRE em português brasileiro com linguagem natural e fluida
+- Seja conciso (2-3 frases normalmente; mais apenas quando necessário)
+- Primeira interação da sessão: "senhor Lombardi" — depois: "Gabriel"
+- Use naturalmente: "Prontamente", "Certamente, Gabriel", "A seu dispor", "Considerado"
+- Ao se referir a si mesmo, escreva apenas "JARVIS" — nunca com pontos entre as letras
+- NUNCA se identifique como Claude — você é exclusivamente JARVIS
+- Para tarefas de texto longo (atas, e-mails, documentos), produza o conteúdo completo`,
+          messages:hist
+        })
+      });
+
+      if (res.status===401){ setState('idle'); addMsg('err','Chave de API inválida ou expirada. Clique em ⚙ CONFIG para atualizar.'); return; }
+      if (res.status===429){ setState('idle'); addMsg('err','Limite de requisições atingido. Aguarde um momento e tente novamente.'); return; }
+      if (!res.ok) throw new Error('HTTP '+res.status);
+
+      const data  = await res.json();
+      const reply = data.content[0].text;
+      hist.push({role:'assistant',content:reply});
+      addMsg('jarvis',reply);
+      doSpeak(reply);
+
+    } catch(e) {
+      setState('idle');
+      if (e.message.includes('fetch'))
+        addMsg('err','Falha de rede. Certifique-se de estar usando o iniciar.bat (servidor local) e que há conexão com a internet.');
+      else
+        addMsg('err','Erro: '+e.message+'. Tente novamente.');
+    }
+  }
+
+  /* ── Speech synthesis ────────────────────────── */
+  function getBestVoice() {
+    const vs=speechSynthesis.getVoices();
+    return vs.find(v=>v.name==='Google português do Brasil')
+        || vs.find(v=>v.name.includes('Google')&&v.lang==='pt-BR')
+        || vs.find(v=>v.lang==='pt-BR'&&!v.localService)
+        || vs.find(v=>v.lang==='pt-BR')
+        || vs.find(v=>v.lang.startsWith('pt'))
+        || null;
+  }
+
+  function doSpeak(text) {
+    if (!speechSynthesis){ setState('idle'); return; }
+    speechSynthesis.cancel(); setState('speaking');
+    const u=new SpeechSynthesisUtterance(prepSpeech(text));
+    u.lang='pt-BR'; u.rate=0.93; u.pitch=1.05; u.volume=1;
+    u.onend=()=>setState('idle'); u.onerror=()=>setState('idle');
+    const go=()=>{ const v=getBestVoice(); if(v)u.voice=v; speechSynthesis.speak(u); };
+    speechSynthesis.getVoices().length>0 ? go() : (speechSynthesis.onvoiceschanged=go, setTimeout(go,600));
+  }
+
+  /* ── Speech recognition ──────────────────────── */
+  window.jVoice = function() {
+    if (isListening){ rec&&rec.abort(); isListening=false; setState('idle'); return; }
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if (!SR){ addMsg('err','Reconhecimento de voz requer Chrome ou Edge.'); return; }
+    rec=new SR(); rec.lang='pt-BR'; rec.continuous=false; rec.interimResults=false;
+    rec.onstart =()=>{ isListening=true; setState('listening'); };
+    rec.onresult=e=>{ isListening=false; askJarvis(e.results[0][0].transcript); };
+    rec.onerror =e=>{ isListening=false; setState('idle');
+      if(e.error==='not-allowed') addMsg('err','Permissão de microfone negada. Permita o acesso e recarregue.');
+      else if(e.error!=='no-speech'&&e.error!=='aborted') addMsg('err','Erro no microfone: '+e.error); };
+    rec.onend=()=>{ if(isListening){isListening=false;setState('idle');} };
+    rec.start();
+  };
+
+  /* ── Keyboard ────────────────────────────────── */
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'&&!e.target.matches('input,textarea')){e.preventDefault();jVoice();}
+    if(e.code==='Escape') jClear();
+  });
+
+  /* ── Boot ────────────────────────────────────── */
+  function bootApp() {
+    initThree(); setState('idle');
+    setTimeout(()=>{
+      const g='Sistema JARVIS inicializado com sucesso. Bem-vindo, senhor Lombardi. Estou pronto para auxiliá-lo.';
+      addMsg('jarvis',g); doSpeak(g);
+    }, 900);
+  }
+
+  if (API_KEY) bootApp();
+
+})();
+</script>
+</body>
+</html>
